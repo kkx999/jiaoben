@@ -38,3 +38,19 @@ bash <(curl -Lso- https://raw.githubusercontent.com/nanqinlang-script/testrace/m
 ```
 bash <(curl -Ls IP.Check.Place)
 ```
+
+## DD Debian12
+
+```
+apt update && apt install -y curl wget ca-certificates && \
+curl -O https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh && \
+bash reinstall.sh debian 12 --username root --password '修改成你的新密码' --ssh-port 22
+```
+DD 重装脚本准备完成执行重启
+```
+reboot
+```
+查看实时安装进度
+```
+tail -f /var/log/syslog
+```
