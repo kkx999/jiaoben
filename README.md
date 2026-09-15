@@ -108,17 +108,4 @@ bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/ipv6-man
 0. 退出
 ```
 
-也可以直接执行指定操作：
-
-```bash
-# 禁用 IPv6
-bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/ipv6-manager.sh) disable
-
-# 恢复 IPv6
-bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/ipv6-manager.sh) enable
-
-# 查看状态
-bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/ipv6-manager.sh) status
-```
-
 脚本使用 `/etc/sysctl.d/99-ipv6-closure.conf` 管理配置，并会清理旧版写入 `/etc/sysctl.conf` 的三条重复 IPv6 禁用配置，避免反复执行后不断追加相同内容。
