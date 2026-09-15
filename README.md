@@ -91,7 +91,7 @@ Cloudflare API Token 至少需要目标域名对应 Zone 的 DNS 编辑权限。
 
 ## IPv6 一键管理
 
-适用于 Debian 及大多数使用 `sysctl` 的 Linux 系统，可禁用 IPv6、恢复 IPv6、查看当前状态。
+适用于 Debian 及大多数使用 `sysctl` 的 Linux 系统。启动后会先检测当前 IPv4、IPv6 和 IPv6 协议栈状态，再进行管理。
 
 一键执行：
 
@@ -99,13 +99,15 @@ Cloudflare API Token 至少需要目标域名对应 Zone 的 DNS 编辑权限。
 bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/ipv6-manager.sh)
 ```
 
-运行后菜单：
+运行后会先显示当前公网 IPv4 / IPv6；公网检测失败时会回退显示本机全局地址，然后进入菜单：
 
 ```text
 1. 禁用 IPv6
 2. 恢复 IPv6
-3. 查看当前状态
+3. 重新检测当前状态
 0. 退出
 ```
+
+禁用 IPv6 前脚本会再次检测网络：当前没有 IPv6 时会提示无需禁用；如果检测到 IPv6 但没有可用 IPv4，为避免关闭 IPv6 后 SSH 或网络中断，脚本不会执行禁用操作。
 
 脚本使用 `/etc/sysctl.d/99-ipv6-closure.conf` 管理配置，并会清理旧版写入 `/etc/sysctl.conf` 的三条重复 IPv6 禁用配置，避免反复执行后不断追加相同内容。
