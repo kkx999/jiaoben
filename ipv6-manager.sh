@@ -177,7 +177,7 @@ EOF
         show_network_info
     else
         echo "错误：IPv6 禁用未完全生效"
-        exit 1
+        return 1
     fi
 }
 
@@ -196,32 +196,58 @@ enable_ipv6() {
     else
         echo "错误：IPv6 恢复未完全生效"
         echo "可能还有其他 sysctl 配置或内核启动参数在禁用 IPv6。"
-        exit 1
+        return 1
     fi
 }
 
 show_menu() {
-    show_network_info
-    show_status
+    while true; do
+        show_network_info
+        show_status
 
-    echo
-    echo "========================================"
-    echo " IPv6 一键管理脚本"
-    echo "========================================"
-    echo "1. 禁用 IPv6"
-    echo "2. 恢复 IPv6"
-    echo "3. 重新检测当前状态"
-    echo "0. 退出"
-    echo "========================================"
-    read -rp "请选择 [0-3]: " choice
+        echo
+        echo "========================================"
+        echo " IPv6 一键管理脚本"
+        echo "========================================"
+        echo "1. 禁用 IPv6"
+        echo "2. 恢复 IPv6"
+        echo "3. 重新检测当前状态"
+        echo "0. 退出"
+        echo "========================================"
+        read -rp "请选择 [0-3]: " choice
 
-    case "$choice" in
-        1) disable_ipv6; show_status ;;
-        2) enable_ipv6; show_network_info; show_status ;;
-        3) show_network_info; show_status ;;
-        0) exit 0 ;;
-        *) echo "错误：无效选项"; exit 1 ;;
-    esac
+        case "$choice" in
+            1)
+                if disable_ipv6; then
+                    show_status
+                else
+                    echo "操作未完成，请根据上方提示检查。"
+                fi
+                ;;
+            2)
+                if enable_ipv6; then
+                    show_network_info
+                    show_status
+                else
+                    echo "操作未完成，请根据上方提示检查。"
+                fi
+                ;;
+            3)
+                show_network_info
+                show_status
+                ;;
+            0)
+                echo "已退出。"
+                exit 0
+                ;;
+            *)
+                echo "错误：无效选项，请输入 0-3。"
+                ;;
+        esac
+
+        echo
+        read -rp "按回车键返回菜单..." _
+    done
 }
 
 case "${1:-}" in
