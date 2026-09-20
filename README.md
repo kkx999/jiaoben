@@ -33,11 +33,17 @@ bash <(curl -fsSL "https://raw.githubusercontent.com/kkx999/jiaoben/main/bbr-man
 curl https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh -sSf | sh
 ```
 
-## IP质量检测
+## IP 质量检测
+
+无广告、无推广，只显示公网 IP、地区、ASN、运营商、网络类型和代理特征等信息，同时检测 IPv4 / IPv6。
+
+一键执行：
 
 ```bash
-bash <(curl -Ls IP.Check.Place)
+bash <(curl -fsSL "https://raw.githubusercontent.com/kkx999/jiaoben/main/ip-quality.sh?v=$(date +%s)")
 ```
+
+检测过程不会修改系统配置；IP 地理位置、网络类型和代理识别结果来自第三方数据库，仅供参考。
 
 ## NAT 申请 SSL 证书
 
