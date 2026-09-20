@@ -32,8 +32,6 @@ bash <(curl -Lso- https://raw.githubusercontent.com/uxh/superspeed/master/supers
 
 ```bash
 curl https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh -sSf | sh
-bash <(curl -Lso- https://raw.githubusercontent.com/flyzy2005/shell/master/autoBestTrace.sh)
-bash <(curl -Lso- https://raw.githubusercontent.com/nanqinlang-script/testrace/master/testrace.sh)
 ```
 
 ## IP质量检测
