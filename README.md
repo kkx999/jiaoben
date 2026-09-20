@@ -111,3 +111,26 @@ bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/ipv6-man
 禁用 IPv6 前脚本会再次检测网络：当前没有 IPv6 时会提示无需禁用；如果检测到 IPv6 但没有可用 IPv4，为避免关闭 IPv6 后 SSH 或网络中断，脚本不会执行禁用操作。
 
 脚本使用 `/etc/sysctl.d/99-ipv6-closure.conf` 管理配置，并会清理旧版写入 `/etc/sysctl.conf` 的三条重复 IPv6 禁用配置，避免反复执行后不断追加相同内容。
+
+## Swap 一键管理
+
+适用于 Debian / Ubuntu 及大多数常见 Linux VPS。脚本会先检测系统盘总容量、已用空间、可用空间、物理内存和当前 Swap，再允许自定义创建或调整 `/swapfile`。
+
+功能包括：
+
+- 自动检测当前硬盘容量和剩余空间
+- 自动检测物理内存和现有 Swap
+- 支持自定义 Swap 大小，例如 `512M`、`1G`、`2G`、`1.5G`
+- 根据内存容量给出建议值
+- 自动计算当前最大安全可创建容量
+- 创建前保留必要的系统磁盘空间，避免把系统盘占满
+- 支持重新调整 `/swapfile` 大小
+- 支持删除 `/swapfile`
+- 自动写入 `/etc/fstab`，重启后继续生效
+- 只管理 `/swapfile`，不会删除或修改其他 Swap 分区或 Swap 文件
+
+一键执行：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/swap-manager.sh)
+```
