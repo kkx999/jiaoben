@@ -24,26 +24,6 @@ curl https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh -sS
 bash <(curl -Ls IP.Check.Place)
 ```
 
-## DD Debian12
-
-```bash
-apt update && apt install -y curl wget ca-certificates && \
-curl -O https://raw.githubusercontent.com/bin456789/reinstall/main/reinstall.sh && \
-bash reinstall.sh debian 12 --username root --password '修改成你的新密码' --ssh-port 22
-```
-
-DD 重装脚本准备完成后执行重启：
-
-```bash
-reboot
-```
-
-查看实时安装进度：
-
-```bash
-tail -f /var/log/syslog
-```
-
 ## NAT 申请 SSL 证书
 
 适用于 Debian / NAT VPS / 低内存 Podman / LXC，使用 Cloudflare DNS 验证，无需开放 80 / 443 端口。
