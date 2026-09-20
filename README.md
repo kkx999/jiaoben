@@ -6,10 +6,25 @@
 wget -qO- bench.sh | bash
 ```
 
-## BBR加速
+## BBR 一键管理
+
+适用于支持 BBR 的现代 Linux 内核。脚本只管理系统自带 BBR，不自动安装、删除或替换 Linux 内核。
+
+功能包括：
+
+- 自动检测系统、内核、虚拟化环境
+- 自动检测当前拥塞控制算法和队列算法
+- 自动检测内核是否支持 BBR
+- 一键开启 `fq + BBR`
+- 保存开启前的拥塞控制和队列算法，关闭时尽量恢复
+- 自动写入 `/etc/sysctl.d/99-bbr.conf`，重启后继续生效
+- 不覆盖其他程序已有的 BBR 配置
+- 不自动更换或删除内核
+
+一键执行：
 
 ```bash
-wget -N --no-check-certificate "https://raw.githubusercontent.com/chiakge/Linux-NetSpeed/master/tcp.sh" && chmod +x tcp.sh && ./tcp.sh
+bash <(curl -fsSL "https://raw.githubusercontent.com/kkx999/jiaoben/main/bbr-manager.sh?v=$(date +%s)")
 ```
 
 ## 线路测试
