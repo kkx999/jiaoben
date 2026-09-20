@@ -248,7 +248,6 @@ enable_bbr() {
     section_header "操作：开启 BBR"
 
     check_managed_path_safe "$CONF_FILE" || return 1
-    check_managed_path_safe "$MODULE_FILE" || return 1
 
     old_cc="$(current_cc)"
     old_qdisc="$(current_qdisc)"
@@ -259,8 +258,13 @@ enable_bbr() {
         return 1
     fi
 
-    if [ "$old_cc" = "bbr" ] && managed_file "$CONF_FILE"; then
-        echo "BBR 当前已经由本脚本启用，无需重复操作。"
+    if [ "$old_cc" = "bbr" ]; then
+        if managed_file "$CONF_FILE"; then
+            echo "BBR 当前已经由本脚本启用，无需重复操作。"
+        else
+            echo "检测到 BBR 当前已经启用。"
+            echo "它不是由本脚本的 $CONF_FILE 配置启用，本脚本不会重复接管或覆盖。"
+        fi
         section_footer
         return 0
     fi
@@ -311,8 +315,8 @@ enable_bbr() {
         return 1
     fi
 
-    if [ "$(current_cc)" != "bbr" ]; then
-        echo "错误：配置已写入，但 BBR 实际未生效，正在回滚。"
+    if [ "$(current_cc)" != "bbr" ] || [ "$(current_qdisc)" != "fq" ]; then
+        echo "错误：配置已写入，但 fq + BBR 未完全生效，正在回滚。"
         rm -f "$CONF_FILE"
         managed_file "$MODULE_FILE" && rm -f "$MODULE_FILE"
         restore_original_state
@@ -332,7 +336,6 @@ disable_bbr() {
     section_header "操作：关闭 BBR"
 
     check_managed_path_safe "$CONF_FILE" || return 1
-    check_managed_path_safe "$MODULE_FILE" || return 1
 
     if managed_file "$CONF_FILE"; then
         rm -f "$CONF_FILE"
