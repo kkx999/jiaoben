@@ -72,17 +72,17 @@ parse_size_mb() {
     awk -v s="$input" '
         BEGIN {
             gsub(/[[:space:]]/, "", s)
-            if (s !~ /^[0-9]+([.][0-9]+)?[mMgG]$/) {
-                exit 1
-            }
 
-            unit = substr(s, length(s), 1)
-            num = substr(s, 1, length(s) - 1) + 0
-
-            if (unit == "g" || unit == "G") {
+            # 纯数字或小数默认按 GB 处理，例如：1 = 1GB，1.5 = 1.5GB
+            if (s ~ /^[0-9]+([.][0-9]+)?$/) {
+                mb = (s + 0) * 1024
+            } else if (s ~ /^[0-9]+([.][0-9]+)?[gG]$/) {
+                num = substr(s, 1, length(s) - 1) + 0
                 mb = num * 1024
+            } else if (s ~ /^[0-9]+([.][0-9]+)?[mM]$/) {
+                mb = substr(s, 1, length(s) - 1) + 0
             } else {
-                mb = num
+                exit 1
             }
 
             mb = int(mb + 0.5)
@@ -265,13 +265,13 @@ create_or_resize_swap() {
     reserve="$(reserve_mb)"
 
     echo
-    read -rp "请输入 Swap 大小（例如 512M、1G、2G、1.5G；直接回车使用建议值 $(format_mb "$recommendation")）： " input
+    read -rp "请输入 Swap 大小（单位默认 GB，例如 1、2、4、1.5；直接回车使用建议值 $(format_mb "$recommendation")）： " input
 
     if [ -z "$input" ]; then
         size_mb="$recommendation"
     else
         if ! size_mb="$(parse_size_mb "$input")"; then
-            echo "错误：容量格式不正确。示例：512M、1G、2G、1.5G"
+            echo "错误：容量格式不正确。直接输入 1、2、4 代表 GB；也支持 512M、1.5G。"
             return 1
         fi
     fi
