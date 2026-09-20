@@ -22,12 +22,6 @@ wget -N --no-check-certificate https://raw.githubusercontent.com/91yun/91yuntest
 wget -N --no-check-certificate "https://raw.githubusercontent.com/chiakge/Linux-NetSpeed/master/tcp.sh" && chmod +x tcp.sh && ./tcp.sh
 ```
 
-## 三网测速
-
-```bash
-bash <(curl -Lso- https://raw.githubusercontent.com/uxh/superspeed/master/superspeed.sh)
-```
-
 ## 线路测试
 
 ```bash
