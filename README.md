@@ -33,25 +33,11 @@ bash <(curl -fsSL "https://raw.githubusercontent.com/kkx999/jiaoben/main/bbr-man
 curl https://raw.githubusercontent.com/zhanghanyun/backtrace/main/install.sh -sSf | sh
 ```
 
-## 多库 IP 质量检测
-
-无广告、无推广，同时使用多个独立数据库交叉查询 IPv4 / IPv6。
-
-当前数据源：
-
-- IP-API：地区、ASN、ISP、机房、代理、移动网络
-- ipapi.is：地区、ASN、公司；配置 API Key 后可额外检测机房、VPN、代理、Tor、滥用
-- ipapi.co：地区、ASN、组织
-- DB-IP：国家、州/省、城市
-- 自动汇总多库机房/匿名风险，并检查国家定位是否一致
-
-一键执行：
+## IP质量检测
 
 ```bash
-bash <(curl -fsSL "https://raw.githubusercontent.com/kkx999/jiaoben/main/ip-quality.sh?v=$(date +%s)")
+bash <(curl -Ls IP.Check.Place)
 ```
-
-默认不需要 API Key。检测过程不会修改系统配置；数据库结果仅用于交叉参考，不代表绝对准确。
 
 ## NAT 申请 SSL 证书
 
