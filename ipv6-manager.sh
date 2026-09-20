@@ -17,6 +17,23 @@ if ! command -v sysctl >/dev/null 2>&1; then
     exit 1
 fi
 
+clear_screen() {
+    if [ -t 1 ] && command -v clear >/dev/null 2>&1; then
+        clear
+    fi
+}
+
+section_header() {
+    echo
+    echo "============================================================"
+    echo "  $1"
+    echo "------------------------------------------------------------"
+}
+
+section_footer() {
+    echo "============================================================"
+}
+
 clean_legacy_lines() {
     [ -f "$SYSCTL_CONF" ] || return 0
 
@@ -82,10 +99,7 @@ show_network_info() {
         local6="$(get_local_ipv6)"
     fi
 
-    echo
-    echo "========================================"
-    echo " 当前 IP 检测"
-    echo "========================================"
+    section_header "当前 IP 检测"
 
     if [ -n "$public4" ]; then
         echo "公网 IPv4：$public4"
@@ -105,17 +119,14 @@ show_network_info() {
         echo "IPv6：未检测到"
     fi
 
-    echo "========================================"
+    section_footer
 }
 
 show_status() {
     local value
     value="$(ipv6_status_value)"
 
-    echo
-    echo "========================================"
-    echo " IPv6 当前状态"
-    echo "========================================"
+    section_header "IPv6 当前状态"
 
     case "$value" in
         1)
@@ -134,7 +145,7 @@ show_status() {
     esac
 
     echo "disable_ipv6 = $value"
-    echo "========================================"
+    section_footer
 }
 
 disable_ipv6() {
@@ -202,51 +213,60 @@ enable_ipv6() {
 
 show_menu() {
     while true; do
+        clear_screen
         show_network_info
         show_status
 
-        echo
-        echo "========================================"
-        echo " IPv6 一键管理脚本"
-        echo "========================================"
+        section_header "IPv6 一键管理脚本"
         echo "1. 禁用 IPv6"
         echo "2. 恢复 IPv6"
         echo "3. 重新检测当前状态"
         echo "0. 退出"
-        echo "========================================"
+        section_footer
         read -rp "请选择 [0-3]: " choice
 
         case "$choice" in
             1)
+                clear_screen
+                section_header "操作：禁用 IPv6"
                 if disable_ipv6; then
                     show_status
                 else
+                    echo
                     echo "操作未完成，请根据上方提示检查。"
                 fi
                 ;;
             2)
+                clear_screen
+                section_header "操作：恢复 IPv6"
                 if enable_ipv6; then
                     show_network_info
                     show_status
                 else
+                    echo
                     echo "操作未完成，请根据上方提示检查。"
                 fi
                 ;;
             3)
+                clear_screen
+                section_header "重新检测结果"
                 show_network_info
                 show_status
                 ;;
             0)
+                clear_screen
                 echo "已退出。"
                 exit 0
                 ;;
             *)
+                echo
                 echo "错误：无效选项，请输入 0-3。"
                 ;;
         esac
 
         echo
-        read -rp "按回车键返回菜单..." _
+        echo "------------------------------------------------------------"
+        read -rp "按回车键返回主菜单..." _
     done
 }
 
