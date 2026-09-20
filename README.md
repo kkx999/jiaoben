@@ -132,5 +132,5 @@ bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/ipv6-man
 一键执行：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/swap-manager.sh)
+bash <(curl -fsSL "https://raw.githubusercontent.com/kkx999/jiaoben/main/swap-manager.sh?v=$(date +%s)")
 ```
