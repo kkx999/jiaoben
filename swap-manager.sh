@@ -5,6 +5,7 @@ set -Eeuo pipefail
 # 仓库：https://github.com/kkx999/jiaoben
 # 只管理 /swapfile，不会删除或修改其他 Swap 分区/文件。
 
+SCRIPT_VERSION="1.0.1"
 SWAP_FILE="/swapfile"
 FSTAB="/etc/fstab"
 MIN_SWAP_MB=128
@@ -144,6 +145,7 @@ show_status() {
     echo
     echo "========================================"
     echo " Swap / 系统资源状态"
+    echo "版本：${SCRIPT_VERSION}"
     echo "========================================"
     echo "系统盘总容量：$(format_mb "$total")"
     echo "系统盘已使用：$(format_mb "$used")"
