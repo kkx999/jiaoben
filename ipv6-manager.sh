@@ -68,12 +68,19 @@ has_ipv6() {
 }
 
 show_network_info() {
-    local public4 public6 local4 local6
+    local public4 public6 local4 local6 ipv6_disabled
 
     public4="$(get_public_ipv4)"
-    public6="$(get_public_ipv6)"
     local4="$(get_local_ipv4)"
-    local6="$(get_local_ipv6)"
+    ipv6_disabled="$(ipv6_status_value)"
+
+    if [ "$ipv6_disabled" = "1" ]; then
+        public6=""
+        local6=""
+    else
+        public6="$(get_public_ipv6)"
+        local6="$(get_local_ipv6)"
+    fi
 
     echo
     echo "========================================"
@@ -88,7 +95,9 @@ show_network_info() {
         echo "IPv4：未检测到"
     fi
 
-    if [ -n "$public6" ]; then
+    if [ "$ipv6_disabled" = "1" ]; then
+        echo "IPv6：已禁用 ✓"
+    elif [ -n "$public6" ]; then
         echo "公网 IPv6：$public6"
     elif [ -n "$local6" ]; then
         echo "IPv6：$local6（公网连通性未确认）"
@@ -164,6 +173,8 @@ EOF
 
     if [ "$(ipv6_status_value)" = "1" ]; then
         echo "IPv6 已禁用 ✓"
+        echo "正在重新检测禁用后的网络状态..."
+        show_network_info
     else
         echo "错误：IPv6 禁用未完全生效"
         exit 1
