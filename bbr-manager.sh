@@ -235,9 +235,9 @@ show_status() {
     echo
     echo "BBR 支持：$support"
     echo "BBR 状态：$active"
-    echo "当前拥塞控制：\${cc:-无法读取}"
-    echo "可用拥塞控制：\${avail:-无法读取}"
-    echo "当前队列算法：\${qdisc:-无法读取}"
+    echo "当前拥塞控制：${cc:-无法读取}"
+    echo "可用拥塞控制：${avail:-无法读取}"
+    echo "当前队列算法：${qdisc:-无法读取}"
     echo "持久化配置：$managed"
     section_footer
 }
@@ -360,7 +360,7 @@ disable_bbr() {
     rmdir "$STATE_DIR" >/dev/null 2>&1 || true
 
     echo "BBR 已关闭 ✓"
-    echo "当前拥塞控制：\${cc:-无法读取}"
+    echo "当前拥塞控制：${cc:-无法读取}"
     echo "当前队列算法：$(current_qdisc)"
     section_footer
 }
@@ -421,7 +421,7 @@ show_menu() {
     done
 }
 
-case "\${1:-}" in
+case "${1:-}" in
     enable|on)
         enable_bbr
         show_status
