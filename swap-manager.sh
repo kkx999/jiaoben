@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # 仓库：https://github.com/kkx999/jiaoben
 # 只管理 /swapfile，不会删除或修改其他 Swap 分区/文件。
 
-SCRIPT_VERSION="1.0.1"
+SCRIPT_VERSION="1.0.2"
 SWAP_FILE="/swapfile"
 FSTAB="/etc/fstab"
 MIN_SWAP_MB=128
@@ -21,6 +21,23 @@ for cmd in awk df mkswap swapon swapoff chmod rm grep du wc mktemp cat dd; do
         exit 1
     fi
 done
+
+clear_screen() {
+    if [ -t 1 ] && command -v clear >/dev/null 2>&1; then
+        clear
+    fi
+}
+
+section_header() {
+    echo
+    echo "============================================================"
+    echo "  $1"
+    echo "------------------------------------------------------------"
+}
+
+section_footer() {
+    echo "============================================================"
+}
 
 format_mb() {
     awk -v mb="$1" 'BEGIN {
@@ -142,11 +159,9 @@ show_status() {
     swap_free="$(awk '/^SwapFree:/ {print int($2 / 1024)}' /proc/meminfo)"
     recommendation="$(recommended_swap_mb)"
 
+    section_header "Swap / 系统资源状态"
+    echo "脚本版本：${SCRIPT_VERSION}"
     echo
-    echo "========================================"
-    echo " Swap / 系统资源状态"
-    echo "版本：${SCRIPT_VERSION}"
-    echo "========================================"
     echo "系统盘总容量：$(format_mb "$total")"
     echo "系统盘已使用：$(format_mb "$used")"
     echo "系统盘可用空间：$(format_mb "$avail")"
@@ -171,24 +186,25 @@ show_status() {
     echo
     echo "建议 Swap：$(format_mb "$recommendation")"
     echo "当前最大安全可创建：$(format_mb "$max")"
-    echo "========================================"
 
     if [ -s /proc/swaps ] && [ "$(wc -l < /proc/swaps)" -gt 1 ]; then
         echo
         echo "当前已启用的 Swap："
         swapon --show || true
     fi
+
+    section_footer
 }
 
 ensure_swapfile_safe_to_replace() {
     if [ -L "$SWAP_FILE" ]; then
         echo "错误：检测到 $SWAP_FILE 是符号链接，为安全起见拒绝覆盖。"
-        exit 1
+        return 1
     fi
 
     if [ -e "$SWAP_FILE" ] && [ ! -f "$SWAP_FILE" ]; then
         echo "错误：$SWAP_FILE 已存在且不是普通文件，为安全起见拒绝覆盖。"
-        exit 1
+        return 1
     fi
 }
 
@@ -259,14 +275,12 @@ create_swap_storage() {
 create_or_resize_swap() {
     local input size_mb max_mb reserve recommendation
 
-    ensure_swapfile_safe_to_replace
-    show_status
+    ensure_swapfile_safe_to_replace || return 1
 
     recommendation="$(recommended_swap_mb)"
     max_mb="$(safe_max_mb)"
     reserve="$(reserve_mb)"
 
-    echo
     read -rp "请输入 Swap 大小（单位默认 GB，例如 1、2、4、1.5；直接回车使用建议值 $(format_mb "$recommendation")）： " input
 
     if [ -z "$input" ]; then
@@ -302,6 +316,7 @@ create_or_resize_swap() {
     fi
 
     if swapfile_active; then
+        echo
         echo "正在停用现有 $SWAP_FILE ..."
         if ! swapoff "$SWAP_FILE"; then
             echo "错误：无法停用现有 $SWAP_FILE。"
@@ -334,18 +349,16 @@ create_or_resize_swap() {
 
     echo
     echo "Swap 创建成功 ✓"
-    show_status
 }
 
 delete_swapfile() {
-    ensure_swapfile_safe_to_replace
+    ensure_swapfile_safe_to_replace || return 1
 
     if [ ! -e "$SWAP_FILE" ]; then
         echo "当前没有 $SWAP_FILE，无需删除。"
         return 0
     fi
 
-    echo
     echo "只会删除 $SWAP_FILE，不会删除其他 Swap 分区或 Swap 文件。"
     read -rp "确认删除？[y/N]: " confirm
 
@@ -355,6 +368,7 @@ delete_swapfile() {
     fi
 
     if swapfile_active; then
+        echo
         echo "正在停用 $SWAP_FILE ..."
         if ! swapoff "$SWAP_FILE"; then
             echo "错误：无法停用 $SWAP_FILE。"
@@ -364,38 +378,67 @@ delete_swapfile() {
     fi
 
     remove_fstab_entry
-
     rm -f "$SWAP_FILE"
 
+    echo
     echo "已删除 $SWAP_FILE ✓"
-    show_status
 }
 
 show_menu() {
     while true; do
+        clear_screen
         show_status
 
-        echo
-        echo "========================================"
-        echo " Swap 一键管理"
-        echo "========================================"
+        section_header "Swap 一键管理"
         echo "1. 创建 / 调整 Swap"
         echo "2. 删除 /swapfile"
         echo "3. 重新检测当前状态"
         echo "0. 退出"
-        echo "========================================"
+        section_footer
+
         read -rp "请选择 [0-3]: " choice
 
         case "$choice" in
-            1) create_or_resize_swap ;;
-            2) delete_swapfile ;;
-            3) continue ;;
-            0) exit 0 ;;
-            *) echo "错误：无效选项。" ;;
+            1)
+                clear_screen
+                section_header "操作：创建 / 调整 Swap"
+                if create_or_resize_swap; then
+                    echo
+                    show_status
+                else
+                    echo
+                    echo "操作未完成，请根据上方提示检查。"
+                fi
+                ;;
+            2)
+                clear_screen
+                section_header "操作：删除 /swapfile"
+                if delete_swapfile; then
+                    echo
+                    show_status
+                else
+                    echo
+                    echo "操作未完成，请根据上方提示检查。"
+                fi
+                ;;
+            3)
+                clear_screen
+                show_status
+                ;;
+            0)
+                clear_screen
+                echo "已退出。"
+                exit 0
+                ;;
+            *)
+                echo
+                echo "错误：无效选项，请输入 0-3。"
+                ;;
         esac
 
         echo
-        read -rp "按回车键继续..." _
+        echo "------------------------------------------------------------"
+        read -rp "按回车键返回主菜单..." _
     done
 }
 
