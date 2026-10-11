@@ -49,3 +49,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/ipv6-man
 ```bash
 bash <(curl -fsSL "https://raw.githubusercontent.com/kkx999/jiaoben/main/swap-manager.sh?v=$(date +%s)")
 ```
+
+## Windows 浏览器无痕模式剪贴板历史（AutoHotkey v2）
+
+支持 Chrome、Edge、Firefox 的 Ctrl+C 文字复制快捷键，尝试让无痕模式复制的文字进入 Windows 10 的 Win+V 剪贴板历史。
+
+- [下载 fuzhi.ahk](./fuzhi.ahk)（也可[直接下载原始脚本](https://raw.githubusercontent.com/kkx999/jiaoben/main/fuzhi.ahk)）
+- 使用方法：安装 AutoHotkey v2，下载后双击运行 `fuzhi.ahk`。
+- 注意：是否能进入 Win+V 历史取决于浏览器和 Windows 的行为；脚本仅处理快捷键复制，不处理右键复制。使用前建议关闭 Windows 剪贴板的跨设备同步。
