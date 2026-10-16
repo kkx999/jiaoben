@@ -42,6 +42,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/nat-cert
 bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/nat-cert-alpine.sh)
 ```
 
+## X-UI Alpine Linux 首次安装
+
+仅用于 **Alpine Linux 首次安装 X-UI**，使用 OpenRC，不使用 systemd。检测到已有 X-UI 后会自动停止，不会覆盖现有安装。
+
+```sh
+wget -qO- https://raw.githubusercontent.com/kkx999/jiaoben/main/x-ui-alpine.sh | sh
+```
+
 ## IPv6 一键管理
 
 检测并管理 IPv6，支持禁用、恢复和状态检测。
