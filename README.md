@@ -30,8 +30,16 @@ bash <(curl -Ls IP.Check.Place)
 
 使用 Cloudflare DNS 验证申请 SSL 证书，并自动续期。
 
+### Debian / Ubuntu
+
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/nat-cert.sh)
+```
+
+### Alpine Linux
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/kkx999/jiaoben/main/nat-cert-alpine.sh)
 ```
 
 ## IPv6 一键管理
