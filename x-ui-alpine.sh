@@ -1,68 +1,40 @@
 #!/bin/sh
 set -eu
 
-# X-UI Alpine Linux 首次安装一键脚本（轻量 + 交互版）
-# 项目：https://github.com/alireza0/x-ui
-# 适用：Alpine Linux / OpenRC
-#
-# 特点：
-#   - 首次安装时恢复交互式端口设置
-#   - wget | sh 模式下从 /dev/tty 读取用户输入
-#   - 不调用 GitHub API
-#   - 不把整个安装包写入 /tmp，直接流式解压
-#   - 安装完成后提供完整 Alpine OpenRC x-ui 管理菜单
-#   - 检测到已有 X-UI 后不会覆盖
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+plain='\033[0m'
 
 REPO="alireza0/x-ui"
-INSTALL_DIR="/usr/local/x-ui"
-DB_DIR="/etc/x-ui"
-SERVICE_FILE="/etc/init.d/x-ui"
 MENU_URL="https://raw.githubusercontent.com/kkx999/jiaoben/main/x-ui-alpine-menu.sh"
 
-RED="$(printf '\033[31m')"
-GREEN="$(printf '\033[32m')"
-YELLOW="$(printf '\033[33m')"
-PLAIN="$(printf '\033[0m')"
-
-ok()   { printf "%s%s%s\n" "$GREEN" "$*" "$PLAIN"; }
-warn() { printf "%s%s%s\n" "$YELLOW" "$*" "$PLAIN"; }
-err()  { printf "%s%s%s\n" "$RED" "$*" "$PLAIN" >&2; }
-
 if [ "$(id -u)" -ne 0 ]; then
-    err "错误：请使用 root 用户运行。"
+    printf "%b\n" "${red}Fatal error: ${plain} Please run this script with root privilege"
     exit 1
 fi
 
 if [ ! -f /etc/alpine-release ]; then
-    err "错误：此脚本仅适用于 Alpine Linux。"
+    printf "%b\n" "${red}Fatal error: ${plain} This script is only for Alpine Linux."
     exit 1
 fi
 
-if [ -x "$INSTALL_DIR/x-ui" ] || [ -f "$DB_DIR/x-ui.db" ]; then
-    err "检测到 X-UI 已经安装。"
-    err "这是首次安装脚本，不会覆盖现有安装。"
-    exit 1
-fi
-
-detect_arch() {
+arch() {
     case "$(uname -m)" in
         x86_64|x64|amd64) echo amd64 ;;
-        i386|i486|i586|i686|x86) echo 386 ;;
+        i*86|x86) echo 386 ;;
         armv8*|armv8|arm64|aarch64) echo arm64 ;;
         armv7*|armv7|arm) echo armv7 ;;
         armv6*|armv6) echo armv6 ;;
         armv5*|armv5) echo armv5 ;;
         s390x) echo s390x ;;
-        *)
-            err "不支持的 CPU 架构：$(uname -m)"
-            exit 1
-            ;;
+        *) printf "%b\n" "${red}Unsupported CPU architecture! ${plain}"; exit 1 ;;
     esac
 }
 
-random_string() {
+gen_random_string() {
     length="$1"
-    LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c "$length"
+    LC_ALL=C tr -dc 'a-zA-Z0-9' </dev/urandom | fold -w "$length" | head -n 1
 }
 
 random_port() {
@@ -70,133 +42,111 @@ random_port() {
     echo $((1024 + n % 60977))
 }
 
-ARCH="$(detect_arch)"
+read_tty() {
+    var="$1"
+    if [ -e /dev/tty ]; then
+        IFS= read -r "$var" </dev/tty || true
+    else
+        IFS= read -r "$var" || true
+    fi
+}
 
-echo
-echo "=============================================="
-echo "       X-UI Alpine Linux 首次安装"
-echo "=============================================="
-echo "架构：$ARCH"
-echo "服务：OpenRC"
-echo "模式：轻量安装"
-echo "=============================================="
-echo
+install_dependencies() {
+    echo "Installing Alpine dependencies..."
+    apk add --no-cache bash wget curl tar tzdata ca-certificates nftables openrc
+    update-ca-certificates >/dev/null 2>&1 || true
+}
 
-echo "[1/6] 安装 Alpine 必要依赖..."
-apk add --no-cache ca-certificates tzdata nftables
-update-ca-certificates >/dev/null 2>&1 || true
+config_after_install() {
+    existing_username=$(/usr/local/x-ui/x-ui setting -show true 2>/dev/null | grep -Eo 'username: .+' | awk '{print $2}' || true)
+    existing_password=$(/usr/local/x-ui/x-ui setting -show true 2>/dev/null | grep -Eo 'password: .+' | awk '{print $2}' || true)
+    existing_webBasePath=$(/usr/local/x-ui/x-ui setting -show true 2>/dev/null | grep -Eo 'webBasePath: .+' | awk '{print $2}' || true)
 
-command -v wget >/dev/null 2>&1 || apk add --no-cache wget
-command -v tar >/dev/null 2>&1 || apk add --no-cache tar
-command -v rc-service >/dev/null 2>&1 || apk add --no-cache openrc
+    if [ ${#existing_webBasePath} -lt 4 ]; then
+        if [ "$existing_username" = "admin" ] && [ "$existing_password" = "admin" ]; then
+            config_webBasePath="${XUI_WEB_BASE_PATH:-$(gen_random_string 15)}"
+            config_username="${XUI_USERNAME:-$(gen_random_string 10)}"
+            config_password="${XUI_PASSWORD:-$(gen_random_string 10)}"
+            config_port="${XUI_PANEL_PORT:-}"
 
-echo
-echo "[2/6] 下载并直接解压 X-UI..."
-DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/x-ui-linux-${ARCH}.tar.gz"
-
-mkdir -p /usr/local
-
-if ! wget -qO- "$DOWNLOAD_URL" | tar -xzf - -C /usr/local; then
-    err "X-UI 下载或解压失败。"
-    rm -rf "$INSTALL_DIR" 2>/dev/null || true
-    exit 1
-fi
-
-if [ ! -f "$INSTALL_DIR/x-ui" ]; then
-    err "安装失败：未找到 $INSTALL_DIR/x-ui"
-    rm -rf "$INSTALL_DIR" 2>/dev/null || true
-    exit 1
-fi
-
-chmod +x "$INSTALL_DIR/x-ui"
-chmod +x "$INSTALL_DIR"/bin/xray-linux-* 2>/dev/null || true
-
-if [ "$ARCH" = "armv7" ] && [ -f "$INSTALL_DIR/bin/xray-linux-armv7" ]; then
-    mv -f "$INSTALL_DIR/bin/xray-linux-armv7" "$INSTALL_DIR/bin/xray-linux-arm"
-    chmod +x "$INSTALL_DIR/bin/xray-linux-arm"
-fi
-
-mkdir -p "$DB_DIR"
-
-echo
-echo "[3/6] 配置首次安装账号和面板端口..."
-
-USERNAME="${XUI_USERNAME:-$(random_string 10)}"
-PASSWORD="${XUI_PASSWORD:-$(random_string 18)}"
-WEB_BASE_PATH="${XUI_WEB_BASE_PATH:-$(random_string 15)}"
-
-if [ -n "${XUI_PANEL_PORT:-}" ]; then
-    PANEL_PORT="$XUI_PANEL_PORT"
-elif [ "${XUI_NONINTERACTIVE:-0}" = "1" ] || [ ! -e /dev/tty ]; then
-    PANEL_PORT="$(random_port)"
-    echo "非交互安装：已生成随机面板端口：$PANEL_PORT"
-else
-    custom_port=""
-    printf "是否自定义面板端口？[y/N]: "
-    read -r custom_port </dev/tty || custom_port=""
-
-    case "$custom_port" in
-        y|Y|yes|YES)
-            while :; do
-                printf "请输入面板端口 [1-65535]: "
-                read -r PANEL_PORT </dev/tty || PANEL_PORT=""
-                case "$PANEL_PORT" in
-                    ''|*[!0-9]*)
-                        err "端口无效，请重新输入。"
-                        continue
-                        ;;
-                esac
-                if [ "$PANEL_PORT" -ge 1 ] && [ "$PANEL_PORT" -le 65535 ]; then
-                    break
+            if [ -n "$config_port" ]; then
+                echo -e "${yellow}Your Panel Port is: ${config_port}${plain}"
+            elif [ "${XUI_NONINTERACTIVE:-0}" != "1" ]; then
+                config_confirm=""
+                printf "Would you like to customize the Panel Port settings? (If not, random port will be applied) [y/n]: "
+                read_tty config_confirm
+                if [ "$config_confirm" = "y" ] || [ "$config_confirm" = "Y" ]; then
+                    while :; do
+                        printf "Please set up the panel port: "
+                        read_tty config_port
+                        case "$config_port" in
+                            ''|*[!0-9]*) echo "Invalid port, please try again."; continue ;;
+                        esac
+                        if [ "$config_port" -ge 1 ] && [ "$config_port" -le 65535 ]; then
+                            break
+                        fi
+                        echo "Invalid port, please try again."
+                    done
+                    echo -e "${yellow}Your Panel Port is: ${config_port}${plain}"
+                else
+                    config_port="$(random_port)"
+                    echo -e "${yellow}Generated random port: ${config_port}${plain}"
                 fi
-                err "端口必须在 1-65535 范围内，请重新输入。"
-            done
-            ;;
-        *)
-            PANEL_PORT="$(random_port)"
-            echo "已生成随机面板端口：$PANEL_PORT"
-            ;;
-    esac
-fi
+            else
+                config_port="$(random_port)"
+                echo -e "${yellow}Generated random port: ${config_port}${plain}"
+            fi
 
-case "$PANEL_PORT" in
-    ''|*[!0-9]*)
-        err "面板端口必须是数字。"
-        exit 1
-        ;;
-esac
+            /usr/local/x-ui/x-ui setting -username "$config_username" -password "$config_password" -port "$config_port" -webBasePath "$config_webBasePath"
+            echo "This is a fresh installation, generating random login info for security concerns:"
+            echo "###############################################"
+            echo -e "${green}Username: ${config_username}${plain}"
+            echo -e "${green}Password: ${config_password}${plain}"
+            echo -e "${green}Port: ${config_port}${plain}"
+            echo -e "${green}WebBasePath: ${config_webBasePath}${plain}"
+            echo "###############################################"
+            echo -e "${yellow}If you forgot your login info, you can type 'x-ui settings' to check${plain}"
+        else
+            config_webBasePath="$(gen_random_string 15)"
+            echo -e "${yellow}WebBasePath is missing or too short. Generating a new one...${plain}"
+            /usr/local/x-ui/x-ui setting -webBasePath "$config_webBasePath"
+            echo -e "${green}New WebBasePath: ${config_webBasePath}${plain}"
+        fi
+    else
+        if [ "$existing_username" = "admin" ] && [ "$existing_password" = "admin" ]; then
+            config_username="$(gen_random_string 10)"
+            config_password="$(gen_random_string 10)"
+            echo -e "${yellow}Default credentials detected. Security update required...${plain}"
+            /usr/local/x-ui/x-ui setting -username "$config_username" -password "$config_password"
+            echo "Generated new random login credentials:"
+            echo "###############################################"
+            echo -e "${green}Username: ${config_username}${plain}"
+            echo -e "${green}Password: ${config_password}${plain}"
+            echo "###############################################"
+            echo -e "${yellow}If you forgot your login info, you can type 'x-ui settings' to check${plain}"
+        else
+            echo -e "${green}Username, Password, and WebBasePath are properly set. Exiting...${plain}"
+        fi
+    fi
 
-if [ "$PANEL_PORT" -lt 1 ] || [ "$PANEL_PORT" -gt 65535 ]; then
-    err "面板端口必须在 1-65535 范围内。"
-    exit 1
-fi
+    /usr/local/x-ui/x-ui migrate
+}
 
-"$INSTALL_DIR/x-ui" \
-    setting \
-    -username "$USERNAME" \
-    -password "$PASSWORD" \
-    -port "$PANEL_PORT" \
-    -webBasePath "$WEB_BASE_PATH"
-
-echo
-echo "[4/6] 创建 Alpine OpenRC 服务..."
-
-cat > "$SERVICE_FILE" <<'EOF'
+create_openrc_service() {
+    cat > /etc/init.d/x-ui <<'EOF'
 #!/sbin/openrc-run
 
 name="x-ui"
 description="X-UI Panel"
-
 command="/usr/local/x-ui/x-ui"
 command_args=""
 directory="/usr/local/x-ui"
-
-command_background="yes"
+command_background="true"
 pidfile="/run/x-ui.pid"
-
 output_log="/var/log/x-ui.log"
 error_log="/var/log/x-ui-error.log"
-
+supervisor="supervise-daemon"
+respawn_delay=5
 export XRAY_VMESS_AEAD_FORCED=false
 
 depend() {
@@ -209,49 +159,132 @@ start_pre() {
     touch /var/log/x-ui.log /var/log/x-ui-error.log
     chmod 600 /var/log/x-ui.log /var/log/x-ui-error.log
 }
+
+extra_started_commands="reload"
+
+reload() {
+    ebegin "Reloading x-ui"
+    start-stop-daemon --signal HUP --pidfile "$pidfile"
+    eend $?
+}
 EOF
+    chmod 755 /etc/init.d/x-ui
+}
 
-chmod 755 "$SERVICE_FILE"
+install_x_ui() {
+    if [ -d /usr/local/x-ui-backup ]; then
+        if [ "${XUI_NONINTERACTIVE:-0}" = "1" ]; then
+            restore_confirm="n"
+        else
+            printf "Failed installation detected. Do you want to restore previously installed version? [y/n]? "
+            read_tty restore_confirm
+        fi
+        if [ "$restore_confirm" = "y" ] || [ "$restore_confirm" = "Y" ]; then
+            rc-service x-ui stop >/dev/null 2>&1 || true
+            if [ -f /usr/local/x-ui-backup/x-ui.db ]; then
+                mv -f /usr/local/x-ui-backup/x-ui.db /etc/x-ui/
+            fi
+            rm -rf /usr/local/x-ui
+            mv -f /usr/local/x-ui-backup /usr/local/x-ui
+            rc-service x-ui start >/dev/null 2>&1 || true
+            echo -e "${green}previous installed x-ui restored successfully${plain}, it is up and running now..."
+            exit 0
+        else
+            echo -e "Continuing installing x-ui ..."
+        fi
+    fi
 
-echo
-echo "[5/6] 安装 Alpine x-ui 管理菜单..."
+    cd /usr/local/
 
-if wget -qO /usr/bin/x-ui "$MENU_URL"; then
-    chmod 755 /usr/bin/x-ui
-    ok "x-ui 管理菜单安装成功。"
-else
-    warn "管理菜单下载失败，X-UI 本体仍已安装。"
-    echo "手动恢复：wget -qO /usr/bin/x-ui $MENU_URL && chmod 755 /usr/bin/x-ui"
-fi
+    if [ "$#" -eq 0 ]; then
+        last_version="$(curl -Ls "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' | head -n 1)"
+        if [ -z "$last_version" ]; then
+            echo -e "${red}Failed to fetch x-ui version, it maybe due to Github API restrictions, please try it later${plain}"
+            exit 1
+        fi
+        echo -e "Got x-ui latest version: ${last_version}, beginning the installation..."
+        url="https://github.com/${REPO}/releases/download/${last_version}/x-ui-linux-$(arch).tar.gz"
+    else
+        last_version="$1"
+        url="https://github.com/${REPO}/releases/download/${last_version}/x-ui-linux-$(arch).tar.gz"
+        echo -e "Beginning to install x-ui ${last_version}"
+    fi
 
-echo
-echo "[6/6] 启用开机自启并启动 X-UI..."
+    package="/usr/local/x-ui-linux-$(arch).tar.gz"
+    wget -N --no-check-certificate -O "$package" "$url"
+    if [ "$?" -ne 0 ]; then
+        echo -e "${red}Downloading x-ui failed, please be sure that your server can access Github ${plain}"
+        exit 1
+    fi
 
-rc-update add x-ui default >/dev/null 2>&1 || true
+    if [ -d /usr/local/x-ui ]; then
+        rc-service x-ui stop >/dev/null 2>&1 || true
+        rm -rf /usr/local/x-ui-backup
+        mv /usr/local/x-ui /usr/local/x-ui-backup
+        if [ -f /etc/x-ui/x-ui.db ]; then
+            cp -f /etc/x-ui/x-ui.db /usr/local/x-ui-backup/x-ui.db
+        fi
+    fi
 
-if ! rc-service x-ui start; then
-    err "X-UI 启动失败。"
-    err "检查：rc-service x-ui status"
-    err "日志：tail -n 100 /var/log/x-ui-error.log"
-    exit 1
-fi
+    tar zxvf "$package" -C /usr/local
+    rm -f "$package"
 
-sleep 1
+    if [ ! -x /usr/local/x-ui/x-ui ]; then
+        echo -e "${red}X-UI extraction failed.${plain}"
+        exit 1
+    fi
 
-echo
-ok "=============================================="
-ok " X-UI 首次安装完成 ✓"
-ok "=============================================="
-echo "架构：        $ARCH"
-echo "安装目录：    $INSTALL_DIR"
-echo "数据库：      $DB_DIR/x-ui.db"
-echo "用户名：      $USERNAME"
-echo "密码：        $PASSWORD"
-echo "面板端口：    $PANEL_PORT"
-echo "WebBasePath： $WEB_BASE_PATH"
-echo
-echo "面板地址："
-"$INSTALL_DIR/x-ui" uri 2>/dev/null || true
-echo
-echo "执行 x-ui 可进入管理菜单。"
-ok "=============================================="
+    chmod +x /usr/local/x-ui/x-ui /usr/local/x-ui/x-ui.sh 2>/dev/null || true
+    chmod +x /usr/local/x-ui/bin/xray-linux-* 2>/dev/null || true
+
+    if [ "$(arch)" = "armv7" ] && [ -f /usr/local/x-ui/bin/xray-linux-armv7 ]; then
+        mv -f /usr/local/x-ui/bin/xray-linux-armv7 /usr/local/x-ui/bin/xray-linux-arm
+        chmod +x /usr/local/x-ui/bin/xray-linux-arm
+    fi
+
+    mkdir -p /etc/x-ui
+    create_openrc_service
+
+    if ! wget --no-check-certificate -O /usr/bin/x-ui "$MENU_URL"; then
+        echo -e "${red}Failed to download Alpine x-ui management script.${plain}"
+        exit 1
+    fi
+    chmod +x /usr/bin/x-ui
+
+    if [ -f /usr/local/x-ui-backup/x-ui.db ]; then
+        cp -f /usr/local/x-ui-backup/x-ui.db /etc/x-ui/x-ui.db
+        chmod 600 /etc/x-ui/x-ui.db
+    fi
+
+    config_after_install
+    rm -rf /usr/local/x-ui-backup
+
+    rc-update add x-ui default >/dev/null 2>&1 || true
+    rc-service x-ui start
+
+    echo -e "${green}x-ui ${last_version}${plain} installation finished, it is up and running now..."
+    echo
+    echo -e "You may access the Panel with following URL(s):${yellow}"
+    /usr/local/x-ui/x-ui uri
+    echo -e "${plain}"
+    echo "X-UI Control Menu Usage"
+    echo "------------------------------------------"
+    echo "x-ui              - Admin Management Script"
+    echo "x-ui start        - Start"
+    echo "x-ui stop         - Stop"
+    echo "x-ui restart      - Restart"
+    echo "x-ui status       - Current Status"
+    echo "x-ui settings     - Current Settings"
+    echo "x-ui enable      - Enable Autostart on OS Startup"
+    echo "x-ui disable     - Disable Autostart on OS Startup"
+    echo "x-ui log          - Check Logs"
+    echo "x-ui update       - Update"
+    echo "x-ui install      - Install"
+    echo "x-ui uninstall    - Uninstall"
+    echo "x-ui help         - Control Menu Usage"
+    echo "------------------------------------------"
+}
+
+echo -e "${green}Running...${plain}"
+install_dependencies
+install_x_ui "$@"
