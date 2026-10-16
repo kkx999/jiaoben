@@ -254,4 +254,6 @@ echo "面板地址："
 echo
 echo "服务状态：rc-service x-ui status"
 echo "管理命令：x-ui"
+echo
+echo "执行 x-ui 即可进入 Alpine 管理菜单。"
 ok "=============================================="
