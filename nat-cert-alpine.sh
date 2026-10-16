@@ -11,8 +11,16 @@ set -eu
 #
 # 自动续期：acme.sh + Alpine BusyBox crond
 # x-ui：证书安装/续期后自动尝试重启 x-ui
+#
+# Alpine 兼容：
+#   安装 GNU coreutils，避免 BusyBox date 无法解析
+#   OpenSSL 的 "Jan 14 12:44:53 2027 GMT" 日期格式。
+#   同时固定 PATH / LC_ALL，确保 acme.sh 和 crond 使用 GNU date。
 
-SCRIPT_VERSION="1.0.0-alpine"
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+export LC_ALL="C"
+
+SCRIPT_VERSION="1.1.0-alpine"
 ACME="/root/.acme.sh/acme.sh"
 INSTALLER_FILE=""
 
@@ -40,8 +48,14 @@ trap cleanup EXIT INT TERM
 
 install_packages() {
     echo "安装必要组件..."
-    apk add --no-cache ca-certificates openssl curl
+    apk add --no-cache ca-certificates openssl curl coreutils
     update-ca-certificates >/dev/null 2>&1 || true
+
+    # Alpine 的 /bin/date 是 BusyBox；coreutils 提供完整 GNU date。
+    if ! date --version >/dev/null 2>&1; then
+        echo "错误：GNU coreutils date 安装失败"
+        exit 1
+    fi
 }
 
 ensure_cron() {
