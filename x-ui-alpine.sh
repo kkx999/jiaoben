@@ -1,31 +1,32 @@
 #!/bin/sh
 set -eu
 
-# X-UI Alpine Linux 首次安装一键脚本（轻量版）
+# X-UI Alpine Linux 首次安装一键脚本（轻量 + 交互版）
 # 项目：https://github.com/alireza0/x-ui
 # 适用：Alpine Linux / OpenRC
 #
 # 特点：
-#   - 不调用 GitHub API，直接下载 latest
-#   - 不把压缩包保存到 /tmp，直接流式解压，降低 tmpfs/内存压力
-#   - 尽量使用 Alpine BusyBox 自带 wget/tar，少装依赖
-#   - 仅首次安装；检测到已有 X-UI 会直接退出
-#
-# 自定义首次安装：
-# XUI_USERNAME=admin XUI_PASSWORD='你的密码' XUI_PANEL_PORT=2053 \
-# XUI_WEB_BASE_PATH='abc123' sh x-ui-alpine.sh
+#   - 首次安装时恢复交互式端口设置
+#   - wget | sh 模式下从 /dev/tty 读取用户输入
+#   - 不调用 GitHub API
+#   - 不把整个安装包写入 /tmp，直接流式解压
+#   - 安装完成后提供完整 Alpine OpenRC x-ui 管理菜单
+#   - 检测到已有 X-UI 后不会覆盖
 
 REPO="alireza0/x-ui"
 INSTALL_DIR="/usr/local/x-ui"
 DB_DIR="/etc/x-ui"
 SERVICE_FILE="/etc/init.d/x-ui"
+MENU_URL="https://raw.githubusercontent.com/kkx999/jiaoben/main/x-ui-alpine-menu.sh"
 
 RED="$(printf '\033[31m')"
 GREEN="$(printf '\033[32m')"
+YELLOW="$(printf '\033[33m')"
 PLAIN="$(printf '\033[0m')"
 
-ok() { printf "%s%s%s\n" "$GREEN" "$*" "$PLAIN"; }
-err() { printf "%s%s%s\n" "$RED" "$*" "$PLAIN" >&2; }
+ok()   { printf "%s%s%s\n" "$GREEN" "$*" "$PLAIN"; }
+warn() { printf "%s%s%s\n" "$YELLOW" "$*" "$PLAIN"; }
+err()  { printf "%s%s%s\n" "$RED" "$*" "$PLAIN" >&2; }
 
 if [ "$(id -u)" -ne 0 ]; then
     err "错误：请使用 root 用户运行。"
@@ -45,13 +46,13 @@ fi
 
 detect_arch() {
     case "$(uname -m)" in
-        x86_64|x64|amd64) echo "amd64" ;;
-        i386|i486|i586|i686|x86) echo "386" ;;
-        armv8*|armv8|arm64|aarch64) echo "arm64" ;;
-        armv7*|armv7|arm) echo "armv7" ;;
-        armv6*|armv6) echo "armv6" ;;
-        armv5*|armv5) echo "armv5" ;;
-        s390x) echo "s390x" ;;
+        x86_64|x64|amd64) echo amd64 ;;
+        i386|i486|i586|i686|x86) echo 386 ;;
+        armv8*|armv8|arm64|aarch64) echo arm64 ;;
+        armv7*|armv7|arm) echo armv7 ;;
+        armv6*|armv6) echo armv6 ;;
+        armv5*|armv5) echo armv5 ;;
+        s390x) echo s390x ;;
         *)
             err "不支持的 CPU 架构：$(uname -m)"
             exit 1
@@ -59,41 +60,42 @@ detect_arch() {
     esac
 }
 
+random_string() {
+    length="$1"
+    LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c "$length"
+}
+
+random_port() {
+    n="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
+    echo $((1024 + n % 60977))
+}
+
 ARCH="$(detect_arch)"
 
+echo
 echo "=============================================="
-echo " X-UI Alpine Linux 首次安装（轻量版）"
+echo "       X-UI Alpine Linux 首次安装"
 echo "=============================================="
 echo "架构：$ARCH"
 echo "服务：OpenRC"
+echo "模式：轻量安装"
 echo "=============================================="
 echo
 
-# Alpine 默认通常已经带 BusyBox wget/tar 和 OpenRC。
-# 这里只补充 HTTPS 证书及系统时区数据，避免安装不必要的大量包。
-echo "[1/5] 安装最少依赖..."
-apk add --no-cache ca-certificates tzdata
+echo "[1/6] 安装 Alpine 必要依赖..."
+apk add --no-cache ca-certificates tzdata nftables
 update-ca-certificates >/dev/null 2>&1 || true
 
-if ! command -v wget >/dev/null 2>&1; then
-    apk add --no-cache wget
-fi
-
-if ! command -v tar >/dev/null 2>&1; then
-    apk add --no-cache tar
-fi
-
-if ! command -v rc-service >/dev/null 2>&1; then
-    apk add --no-cache openrc
-fi
+command -v wget >/dev/null 2>&1 || apk add --no-cache wget
+command -v tar >/dev/null 2>&1 || apk add --no-cache tar
+command -v rc-service >/dev/null 2>&1 || apk add --no-cache openrc
 
 echo
-echo "[2/5] 下载并直接解压 X-UI..."
+echo "[2/6] 下载并直接解压 X-UI..."
 DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/x-ui-linux-${ARCH}.tar.gz"
 
 mkdir -p /usr/local
 
-# 流式下载 + 解压，不在 /tmp 或 /usr/local 保存整个 tar.gz。
 if ! wget -qO- "$DOWNLOAD_URL" | tar -xzf - -C /usr/local; then
     err "X-UI 下载或解压失败。"
     rm -rf "$INSTALL_DIR" 2>/dev/null || true
@@ -106,34 +108,56 @@ if [ ! -f "$INSTALL_DIR/x-ui" ]; then
     exit 1
 fi
 
-echo
-echo "[3/5] 配置 X-UI..."
-
-mkdir -p "$DB_DIR"
-
 chmod +x "$INSTALL_DIR/x-ui"
 chmod +x "$INSTALL_DIR"/bin/xray-linux-* 2>/dev/null || true
 
-# 与上游架构处理保持一致。
 if [ "$ARCH" = "armv7" ] && [ -f "$INSTALL_DIR/bin/xray-linux-armv7" ]; then
     mv -f "$INSTALL_DIR/bin/xray-linux-armv7" "$INSTALL_DIR/bin/xray-linux-arm"
     chmod +x "$INSTALL_DIR/bin/xray-linux-arm"
 fi
 
-random_string() {
-    length="$1"
-    LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c "$length"
-}
+mkdir -p "$DB_DIR"
 
-random_port() {
-    n="$(od -An -N4 -tu4 /dev/urandom | tr -d ' ')"
-    echo $((1024 + n % 60977))
-}
+echo
+echo "[3/6] 配置首次安装账号和面板端口..."
 
 USERNAME="${XUI_USERNAME:-$(random_string 10)}"
 PASSWORD="${XUI_PASSWORD:-$(random_string 18)}"
 WEB_BASE_PATH="${XUI_WEB_BASE_PATH:-$(random_string 15)}"
-PANEL_PORT="${XUI_PANEL_PORT:-$(random_port)}"
+
+if [ -n "${XUI_PANEL_PORT:-}" ]; then
+    PANEL_PORT="$XUI_PANEL_PORT"
+elif [ "${XUI_NONINTERACTIVE:-0}" = "1" ] || [ ! -e /dev/tty ]; then
+    PANEL_PORT="$(random_port)"
+    echo "非交互安装：已生成随机面板端口：$PANEL_PORT"
+else
+    custom_port=""
+    printf "是否自定义面板端口？[y/N]: "
+    read -r custom_port </dev/tty || custom_port=""
+
+    case "$custom_port" in
+        y|Y|yes|YES)
+            while :; do
+                printf "请输入面板端口 [1-65535]: "
+                read -r PANEL_PORT </dev/tty || PANEL_PORT=""
+                case "$PANEL_PORT" in
+                    ''|*[!0-9]*)
+                        err "端口无效，请重新输入。"
+                        continue
+                        ;;
+                esac
+                if [ "$PANEL_PORT" -ge 1 ] && [ "$PANEL_PORT" -le 65535 ]; then
+                    break
+                fi
+                err "端口必须在 1-65535 范围内，请重新输入。"
+            done
+            ;;
+        *)
+            PANEL_PORT="$(random_port)"
+            echo "已生成随机面板端口：$PANEL_PORT"
+            ;;
+    esac
+fi
 
 case "$PANEL_PORT" in
     ''|*[!0-9]*)
@@ -155,7 +179,7 @@ fi
     -webBasePath "$WEB_BASE_PATH"
 
 echo
-echo "[4/5] 创建 Alpine OpenRC 服务..."
+echo "[4/6] 创建 Alpine OpenRC 服务..."
 
 cat > "$SERVICE_FILE" <<'EOF'
 #!/sbin/openrc-run
@@ -189,40 +213,19 @@ EOF
 
 chmod 755 "$SERVICE_FILE"
 
-# Alpine 兼容的轻量管理命令，不使用上游 systemd 管理脚本。
-cat > /usr/bin/x-ui <<'EOF'
-#!/bin/sh
+echo
+echo "[5/6] 安装 Alpine x-ui 管理菜单..."
 
-case "${1:-}" in
-    start)    rc-service x-ui start ;;
-    stop)     rc-service x-ui stop ;;
-    restart)  rc-service x-ui restart ;;
-    status)   rc-service x-ui status ;;
-    enable)   rc-update add x-ui default ;;
-    disable)  rc-update del x-ui default ;;
-    log)      tail -n 100 /var/log/x-ui.log ;;
-    settings) /usr/local/x-ui/x-ui setting -show true ;;
-    uri)      /usr/local/x-ui/x-ui uri ;;
-    *)
-        echo "X-UI Alpine 管理命令"
-        echo
-        echo "x-ui start       启动"
-        echo "x-ui stop        停止"
-        echo "x-ui restart     重启"
-        echo "x-ui status      查看状态"
-        echo "x-ui settings    查看设置"
-        echo "x-ui uri         查看面板地址"
-        echo "x-ui log         查看日志"
-        echo "x-ui enable      开机自启"
-        echo "x-ui disable     取消开机自启"
-        ;;
-esac
-EOF
-
-chmod 755 /usr/bin/x-ui
+if wget -qO /usr/bin/x-ui "$MENU_URL"; then
+    chmod 755 /usr/bin/x-ui
+    ok "x-ui 管理菜单安装成功。"
+else
+    warn "管理菜单下载失败，X-UI 本体仍已安装。"
+    echo "手动恢复：wget -qO /usr/bin/x-ui $MENU_URL && chmod 755 /usr/bin/x-ui"
+fi
 
 echo
-echo "[5/5] 启用开机自启并启动 X-UI..."
+echo "[6/6] 启用开机自启并启动 X-UI..."
 
 rc-update add x-ui default >/dev/null 2>&1 || true
 
@@ -242,8 +245,6 @@ ok "=============================================="
 echo "架构：        $ARCH"
 echo "安装目录：    $INSTALL_DIR"
 echo "数据库：      $DB_DIR/x-ui.db"
-echo "OpenRC 服务： $SERVICE_FILE"
-echo
 echo "用户名：      $USERNAME"
 echo "密码：        $PASSWORD"
 echo "面板端口：    $PANEL_PORT"
@@ -252,8 +253,5 @@ echo
 echo "面板地址："
 "$INSTALL_DIR/x-ui" uri 2>/dev/null || true
 echo
-echo "服务状态：rc-service x-ui status"
-echo "管理命令：x-ui"
-echo
-echo "执行 x-ui 即可进入 Alpine 管理菜单。"
+echo "执行 x-ui 可进入管理菜单。"
 ok "=============================================="
